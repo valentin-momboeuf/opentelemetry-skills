@@ -42,6 +42,20 @@ Output is a structured report with three buckets: ❌ blocking errors, ⚠️ wa
 
 Triggers on prompts like *"validate my collector config"*, *"audit OTLP pipeline"*.
 
+### `otel-pipeline-designer`
+
+Generate a deployable OpenTelemetry Collector configuration *from scratch* given a natural-language intent like *"K8s logs + Java traces to Tempo + Loki"* or *"VM fleet to Mimir + Tempo"* or *"two-tier with tail sampling to Datadog"*.
+
+Three steps:
+
+1. **Gather intent** — signals (traces/metrics/logs), sources (k8s, VMs, SDKs, prometheus, kafka), environment, backends, and constraints (TLS, multi-tenancy, sampling).
+2. **Design topology** — pick the distribution (core vs contrib), the deployment topology (single agent / agent + gateway / sidecar), the receivers, processors (in canonical order: `memory_limiter` first, `k8sattributes`, `resourcedetection`, transforms, filters, `tail_sampling`, `batch` last), and the exporters (with retry+queue, modern `otlphttp` to Loki rather than the deprecated `loki` exporter, `prometheusremotewrite` with `X-Scope-OrgID` for Mimir, `loadbalancing` by traceID before any tail-sampling gateway).
+3. **Emit YAML** — a deployable config plus a Topology/Distribution/Configuration/RBAC/Rationale/TODO report. Multi-tier setups get one config per tier.
+
+Output structure: 🗺️ Topology / 📦 Distribution required / ⚙️ Configuration / 🔐 RBAC (if K8s) / 💬 Rationale / 📋 TODO before deploying.
+
+Triggers on prompts like *"design a pipeline for X to Y"*, *"build me an otelcol config"*, *"k8s logs + traces to Tempo+Loki"*, *"two-tier tail sampling to Datadog"*.
+
 ### `otel-collector-debug`
 
 Diagnose a *running* OpenTelemetry Collector when symptoms hit: no data reaching the backend, OOM/restart loops, dropped spans/metrics/logs, exporter retries, queue full, high CPU, or wrong data shape at the backend.

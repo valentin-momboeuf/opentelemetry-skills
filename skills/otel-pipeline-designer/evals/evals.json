@@ -1,0 +1,26 @@
+{
+  "skill_name": "otel-pipeline-designer",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "k8s-traces-logs",
+      "prompt": "We're rolling out OpenTelemetry on a 200-node Kubernetes cluster (~50 services). Need to ship Java app traces to a Tempo running at `tempo.observability.svc.cluster.local:4317`, and pod logs to a Loki at `loki.observability.svc.cluster.local:3100`. Generate me the collector config(s) — both agent and gateway tiers if you think we need them.",
+      "expected_output": "Deployable YAML using contrib distribution. DaemonSet agent with filelog (mounted /var/log/pods) + otlp receivers; k8sattributes processor; resourcedetection with k8snode detector; memory_limiter first / batch last; otlphttp exporter for Loki and otlp exporter for Tempo, both wrapped with sending_queue + retry_on_failure. file_storage extension for filelog persistence. RBAC ClusterRole/Binding for k8sattributes. Rationale section explaining tier choice (agent-only is fine without tail sampling). TODO list before deploy.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "eval_name": "vm-fleet-multisignal",
+      "prompt": "I have a fleet of about 30 VMs (no Kubernetes). I want to install one OTel collector per VM. It should: (1) scrape Prometheus targets exposed on `localhost:9100` (node_exporter) and `localhost:9090` (the app metrics endpoint), (2) collect host metrics (CPU, memory, disk, network), and (3) accept OTLP traces from the local app on 4317. Push metrics to Mimir at `https://mimir.internal/api/v1/push` (multi-tenant, our tenant is `prod-eu`), and push traces to Tempo at `tempo.internal:4317`. Generate the config.",
+      "expected_output": "Deployable YAML using contrib distribution. prometheus receiver with both scrape jobs (node_exporter and app metrics); hostmetrics receiver with bounded scrapers; otlp receiver. memory_limiter first / batch last; resourcedetection with env+system. Two (or three) pipelines: metrics from prometheus+hostmetrics → prometheusremotewrite to Mimir with X-Scope-OrgID: prod-eu header; traces → otlp to Tempo. No k8sattributes (not Kubernetes). sending_queue + retry on both exporters.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "eval_name": "two-tier-tail-sampling",
+      "prompt": "I want a two-tier OTel setup. The agent layer is one collector per node (DaemonSet) that just receives OTLP from apps and forwards by trace ID to the gateway. The gateway layer is a Deployment with 3 replicas that does tail-based sampling — keep 100% of traces with errors, plus 5% of normal traces — and exports the kept traces to Datadog (api.datadoghq.eu). I'll inject the API key as an env var `DD_API_KEY`. Generate both configs.",
+      "expected_output": "Two deployable YAML configs (agent + gateway), contrib distribution. Agent: otlp receiver → memory_limiter → batch → loadbalancing exporter routing by traceID to the gateway Service. Gateway: otlp receiver → memory_limiter → tail_sampling with two policies (status_code=ERROR keep + probabilistic 5%) → batch → datadog exporter with api.key referencing ${env:DD_API_KEY} and site=datadoghq.eu. Rationale must call out that loadbalancing is required for tail_sampling correctness across the 3 gateway replicas. RBAC may not be required (no k8sattributes). TODO list mentions setting DD_API_KEY and the agent → gateway Service DNS resolution.",
+      "files": []
+    }
+  ]
+}
