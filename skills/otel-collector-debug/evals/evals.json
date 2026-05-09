@@ -1,0 +1,26 @@
+{
+  "skill_name": "otel-collector-debug",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "oom-with-evidence",
+      "prompt": "Our otel collector pod has been getting OOM-killed every couple of hours since yesterday's rollout. I grabbed the last few minutes of pod logs into `oom_logs.txt` and a snapshot of self-metrics into `metrics_snapshot.txt`. Can you tell me what's going on and how to stop the bleeding?",
+      "expected_output": "Diagnostic report identifying that the OOM is a SYMPTOM of backend egress saturation: the otlp exporter cannot keep up (high send_failed, queue at capacity, retries escalating with ResourceExhausted/DeadlineExceeded), the queue fills up, memory_limiter starts dropping at the receiver as backpressure, then OOM hits because limit_mib + spike_limit_mib together exceed the container memory limit. Action items must address the backend bottleneck (and queue tuning) and the limiter sizing — not just 'add more memory'.",
+      "files": ["oom_logs.txt", "metrics_snapshot.txt"]
+    },
+    {
+      "id": 2,
+      "eval_name": "no-data-arriving",
+      "prompt": "None of my traces have been reaching Tempo since this morning's deploy. The collector pod is up, no errors in logs, and `otelcol validate` says the config is fine. Here's the config (`collector_config.yaml`) and the pod logs since startup (`collector_logs.txt`). What should I check?",
+      "expected_output": "Diagnostic report identifying the otlp receiver bound to 127.0.0.1:4317 (loopback) instead of 0.0.0.0:4317 — clients outside the pod's network namespace cannot reach the receiver, so no data ever arrives at the collector and therefore not at Tempo. Should also propose verification steps (telemetrygen from inside vs outside the pod, check otelcol_receiver_accepted_spans, zpages tracez) before recommending the bind-address fix.",
+      "files": ["collector_config.yaml", "collector_logs.txt"]
+    },
+    {
+      "id": 3,
+      "eval_name": "cardinality-blowup",
+      "prompt": "Since rolling out our new collector config, Mimir is rejecting ~35k samples per minute with 'series limit per metric exceeded' and 'too many label names'. Here's the relevant collector config (`collector_config.yaml`) and a sample of the Mimir errors (`mimir_errors.txt`). What's the root cause?",
+      "expected_output": "Diagnostic report identifying that the `attributes/enrich` processor is wired into the metrics pipeline and injects `request_id`, `span_id`, and `trace_id` as labels on every datapoint — these are unbounded-cardinality identifiers that should never be metric labels. Should propose immediate fix (remove enrich from the metrics pipeline, or move it to traces/logs only), recommend using a debug exporter to confirm the post-processing label set, and warn that already-ingested high-cardinality series may need to be purged on the Mimir side.",
+      "files": ["collector_config.yaml", "mimir_errors.txt"]
+    }
+  ]
+}

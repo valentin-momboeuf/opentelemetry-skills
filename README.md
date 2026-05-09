@@ -40,7 +40,27 @@ Runs a 3-phase audit:
 
 Output is a structured report with three buckets: ❌ blocking errors, ⚠️ warnings, 💡 optimization suggestions, each with a YAML path or line number to the offending location.
 
-Triggers on prompts like *"validate my collector config"*, *"audit OTLP pipeline"*, *"my collector OOMs"*, *"my traces aren't arriving"*.
+Triggers on prompts like *"validate my collector config"*, *"audit OTLP pipeline"*.
+
+### `otel-collector-debug`
+
+Diagnose a *running* OpenTelemetry Collector when symptoms hit: no data reaching the backend, OOM/restart loops, dropped spans/metrics/logs, exporter retries, queue full, high CPU, or wrong data shape at the backend.
+
+Walks the standard diagnostic toolbox:
+
+1. **Collector logs** — error patterns (`Sending queue is full`, `data refused due to memory limit`, `dial tcp ... refused`, `unknown component`).
+2. **Self-metrics** (`:8888/metrics`) — `otelcol_receiver_accepted_*`, `_processor_refused_*`, `_exporter_send_failed_*`, `_queue_size`/`_queue_capacity`.
+3. **zpages** (`:55679/debug/{tracez,pipelinez,extensionz,servicez}`).
+4. **debug exporter** to inspect what's actually flowing through the pipeline.
+5. **pprof** (`:1777/debug/pprof/{heap,profile,goroutine}`) for memory and CPU issues.
+6. **health_check** / **health_check_v2** for liveness vs per-pipeline health.
+7. **telemetrygen** to take real clients out of the loop.
+
+A symptom→diagnosis decision tree maps "no data arriving", "OOM", "dropped signals", "wrong attributes/cardinality", "broken-after-deploy", and "high CPU" to their primary root causes. Crucially, the skill enforces the distinction between *symptoms* (e.g. `memory_limiter` firing) and *root cause* (e.g. backend egress saturation) — the most common mis-diagnosis in collector incidents.
+
+Output is a structured diagnostic report: 🔎 Symptom / 🎯 Likely root cause / 🧪 Evidence / 🔧 Action items / ❓ Open questions.
+
+Triggers on prompts like *"my collector is dropping data"*, *"no traces arriving in Tempo"*, *"collector OOMing"*, *"Mimir is hitting cardinality limits since the rollout"*, *"debug otel collector"*.
 
 ## Local install
 
