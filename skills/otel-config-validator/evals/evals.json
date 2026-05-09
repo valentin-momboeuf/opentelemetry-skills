@@ -1,0 +1,26 @@
+{
+  "skill_name": "otel-config-validator",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "broken-multi-issue",
+      "prompt": "j'ai cette conf otel collector qui a fait un OOM en prod hier soir. tu peux me dire tout ce qui cloche dedans ? le fichier est `broken_config.yaml` dans le répertoire courant.",
+      "expected_output": "Structured report flagging at minimum: missing memory_limiter, batch placed before tail_sampling (wrong order), tls.insecure=true, otlp receiver bound to 127.0.0.1, deprecated 'logging' exporter (renamed to 'debug'), no sending_queue/retry on otlp exporter, tail_sampling single-instance constraint.",
+      "files": ["broken_config.yaml"]
+    },
+    {
+      "id": 2,
+      "eval_name": "subtle-cardinality",
+      "prompt": "ma conf collector passe `otelcol validate` mais j'ai des soucis bizarres en prod : grafana mimir explose en cardinalité, et mon filelog rejoue tout l'historique à chaque restart. peux-tu auditer `subtle_config.yaml` et me dire ce qui se passe ?",
+      "expected_output": "Structured report flagging at minimum: high-cardinality attributes (request_id, user_id) added on a metrics pipeline, filelog start_at: beginning without file_storage extension, no service.telemetry block exposed.",
+      "files": ["subtle_config.yaml"]
+    },
+    {
+      "id": 3,
+      "eval_name": "clean-prod-ready",
+      "prompt": "avant de pousser en prod, audit final stp de mon `clean_config.yaml`. c'est pour un collector contrib en mode gateway derrière un LB.",
+      "expected_output": "Validation report indicating the config is ✅ valid, with the list of detected components and their roles. Should NOT invent issues. May suggest minor optimizations but should clearly state no blocking errors.",
+      "files": ["clean_config.yaml"]
+    }
+  ]
+}

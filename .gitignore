@@ -1,0 +1,30 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Claude Code local state
+.claude/settings.local.json
+
+# Python (instrumentation samples)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node (instrumentation samples)
+node_modules/
+
+# Outputs
+dist/
+build/
+*.log
+
+# Skill-creator eval workspaces (iteration artefacts, not part of skills)
+skills/*-workspace/
