@@ -56,6 +56,22 @@ Output structure: 🗺️ Topology / 📦 Distribution required / ⚙️ Configu
 
 Triggers on prompts like *"design a pipeline for X to Y"*, *"build me an otelcol config"*, *"k8s logs + traces to Tempo+Loki"*, *"two-tier tail sampling to Datadog"*.
 
+### `otel-sampling-strategy`
+
+Design and size an OpenTelemetry sampling strategy from volumetry, error rate, latency targets, and backend cost. Picks between head sampling (SDK), tail sampling (collector), or a combined strategy; sizes the ratios; configures `tail_sampling` policies (errors, latency, per-service preservation, probabilistic baseline, rate limiting); produces a deployable YAML plus a back-of-envelope volume / memory / cost calculation.
+
+Three-budget sizing methodology:
+
+1. **Input volume** — incoming traces/sec × spans/trace.
+2. **Output target** (cost-driven) — derived from the backend's per-million-spans price or storage budget.
+3. **Gateway memory** — `num_traces × spans/trace × span_size / replicas`, sized at `traces/sec × decision_wait × 1.5` headroom.
+
+Strategy patterns covered: cost-driven with errors-must-survive, volume-cut-no-error-preservation, two-stage head + tail, per-service preservation with quota-style policies. Each pattern names the right tool and the canonical caveat (e.g. "head sampling cannot recover errors that the SDK already dropped").
+
+Output is a structured report: 📋 Inputs / 🎯 Strategy / 📐 Sizing (table with computed numbers) / ⚙️ Configuration / ⚖️ Trade-offs / ✅ TODO before deploying.
+
+Triggers on prompts like *"design a sampling strategy"*, *"head vs tail"*, *"what sampling ratio should I use"*, *"size tail_sampling memory"*, *"Datadog cost too high"*, *"keep all errors"*, *"OTEL_TRACES_SAMPLER"*, *"parentbased_traceidratio"*.
+
 ### `ottl-helper`
 
 Write, explain, or validate OTTL (OpenTelemetry Transformation Language) statements for the contrib `transform`, `filter`, and `routing` (connector) processors.

@@ -1,0 +1,26 @@
+{
+  "skill_name": "otel-sampling-strategy",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "sizing-tail-50k",
+      "prompt": "We're emitting ~50k traces/sec from our checkout service. Need to keep all errors (current ~2% error rate), all slow traces (anything over our p99 SLO of 800ms), and a baseline of 5% of normals. Backend is Datadog APM, billed at $1.27 per million spans. Average trace has 6 spans. We have a 3-replica gateway tier behind a loadbalancing agent. Design the sampling and tell me the resulting volume and monthly cost.",
+      "expected_output": "Tail-sampling design with 100% head sampling. Three policies: status_code [ERROR], latency 800ms, probabilistic ~5%. Sizing: decision_wait ≥ 30s, num_traces around 50000×30×1.5 = 2.25M, memory math per replica (~6.75 GiB at 1.5KB/span × 6 spans × 750k traces/replica) — should flag this is high. Output: errors (~1k traces/s) + slow (~500/s) + 5% of remainder (~2.4k/s) ≈ 3.9k traces/s = ~23k spans/s. Monthly: ~60B spans → ~$77k/month vs ~$987k unsampled (≈92% reduction).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "eval_name": "head-vs-tail-decision",
+      "prompt": "Our small Go fleet emits ~500 traces/sec to a self-hosted Tempo. We mostly care about latency and traffic patterns, not individual error traces (those are alerted on separately via metrics). I want to cut ingest by ~90% to fit Tempo's storage budget. Should I head or tail sample? Give me the SDK or collector config and the rationale.",
+      "expected_output": "Recommend head sampling with parentbased_traceidratio at 0.1. SDK env vars OTEL_TRACES_SAMPLER=parentbased_traceidratio, OTEL_TRACES_SAMPLER_ARG=0.1. Should explicitly call out the trade-off that 90% of errors will also be dropped (and confirm the user has acknowledged this — they did via the 'errors alerted on separately via metrics' caveat). Should NOT recommend tail sampling for this scale and constraints.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "eval_name": "per-service-strategy",
+      "prompt": "Our K8s cluster has 30 services. The chatty ones (envoy proxy, auth-service) emit ~80% of all spans but errors there are repetitive and not actionable. The low-volume ones (payments, checkout, fraud-detection) need full preservation — we never want to lose those. Errors and slow (>2s) traces should always survive. Design the tail_sampling policy.",
+      "expected_output": "Tail-sampling policy with: status_code [ERROR] for errors; latency 2000ms for slow; string_attribute service.name in [payments, checkout, fraud-detection] for low-volume preservation; aggressive probabilistic (e.g. 1-5%) or rate_limiting for the chatty services (envoy, auth-service). 100% head sampling required (mentioned). Loadbalancing tier requirement mentioned. Output structured per the skill's report template.",
+      "files": []
+    }
+  ]
+}
