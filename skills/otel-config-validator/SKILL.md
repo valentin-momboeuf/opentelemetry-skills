@@ -1,167 +1,167 @@
 ---
 name: otel-config-validator
-description: Use when reviewing or validating an OpenTelemetry Collector configuration (otelcol / otelcol-contrib / EDOT YAML). Triggers on "valide ma config collector", "review otel config", "audit pipeline OTLP", "mon collector ne démarre pas", "le collector OOM", "pourquoi mes traces n'arrivent pas", or any review of a `config.yaml` for the OpenTelemetry Collector. Checks YAML schema, distribution coverage, pipeline references, processor order (memory_limiter first / batch last), and the classic pitfalls (TLS, OTLP ports 4317 vs 4318, tail_sampling load-balancing, batch sizing, high-cardinality attributes on metrics, debug exporter verbosity, k8sattributes RBAC).
+description: Use when reviewing or validating an OpenTelemetry Collector configuration (otelcol / otelcol-contrib / EDOT YAML). Triggers on "validate my collector config", "review otel config", "audit OTLP pipeline", "my collector won't start", "the collector is OOMing", "why aren't my traces arriving", or any review of a `config.yaml` for the OpenTelemetry Collector. Checks YAML schema, distribution coverage, pipeline references, processor order (memory_limiter first / batch last), and the classic pitfalls (TLS, OTLP ports 4317 vs 4318, tail_sampling load-balancing, batch sizing, high-cardinality attributes on metrics, debug exporter verbosity, k8sattributes RBAC).
 ---
 
-# Quand utiliser ce skill
+# When to use this skill
 
-L'utilisateur soumet une configuration OpenTelemetry Collector (`config.yaml`, `otelcol-config.yaml`, ou un manifeste Helm/K8s contenant un bloc `config:`) et il faut :
+The user submits an OpenTelemetry Collector configuration (`config.yaml`, `otelcol-config.yaml`, or a Helm/K8s manifest containing a `config:` block) and you need to:
 
-- la valider avant déploiement,
-- ou diagnostiquer un comportement bizarre (OOM, traces qui n'arrivent pas, sampling raté, logs noyés, métriques à cardinalité explosive).
+- validate it before deployment, or
+- diagnose unexpected behavior (OOM, traces not arriving, broken sampling, log flooding, runaway metric cardinality).
 
-Si ce qu'on examine n'est pas une config collector (par ex. config d'un SDK OTel côté appli, ou d'un backend type Jaeger/Prometheus), ne pas appliquer ce skill.
+If what you're looking at is not a collector config (e.g. an OTel SDK config inside an application, or a backend config like Jaeger/Prometheus), do not apply this skill.
 
-# Méthode
+# Method
 
-Trois phases dans cet ordre. Ne pas sauter de phase : un piège de phase 3 peut masquer un problème de phase 2, et vice-versa.
+Three phases, in order. Do not skip a phase: a phase 3 issue can mask a phase 2 issue, and vice-versa.
 
-## Phase 1 — Validation syntaxique et distribution
+## Phase 1 — Syntax and distribution
 
-1. **Identifier la distribution** depuis l'image Docker, le binaire ou les composants utilisés :
+1. **Identify the distribution** from the Docker image, binary, or components used:
    - `otel/opentelemetry-collector` (core) — minimal
-   - `otel/opentelemetry-collector-contrib` — la plupart des composants utiles
-   - `docker.elastic.co/beats/elastic-agent` ou EDOT collector
+   - `otel/opentelemetry-collector-contrib` — most useful components
+   - `docker.elastic.co/beats/elastic-agent` or EDOT collector
    - `quay.io/signalfx/splunk-otel-collector`, `public.ecr.aws/aws-observability/aws-otel-collector`, etc.
 
-   Composants qui ne sont **pas** dans `core` (donc nécessitent contrib ou un dérivé) :
+   Components **not** in `core` (so they require contrib or a derivative):
    `tail_sampling`, `transform`, `filter`, `k8sattributes`, `resourcedetection`, `filelog`, `journald`, `loadbalancing` (exporter), `routing` (connector).
 
-2. **Lancer la validation native** :
+2. **Run native validation**:
    ```bash
    otelcol-contrib validate --config=config.yaml
    ```
-   Ou via Docker pour matcher la version cible :
+   Or via Docker to match the target version:
    ```bash
    docker run --rm -v "$(pwd)/config.yaml:/etc/otelcol/config.yaml" \
      otel/opentelemetry-collector-contrib:0.110.0 \
      validate --config=/etc/otelcol/config.yaml
    ```
 
-3. **Si le binaire n'est pas accessible**, vérifier le YAML à la main :
-   - Indentation cohérente (espaces, jamais tabs)
-   - Clés top-level autorisées : `extensions`, `receivers`, `processors`, `exporters`, `connectors`, `service`
-   - Chaque pipeline déclare au minimum `receivers` (≥1) et `exporters` (≥1) ; `processors` est optionnel mais recommandé
-   - Pas de clés inconnues (typo type `processers`, `exportor`)
+3. **If the binary isn't available**, review the YAML manually:
+   - Consistent indentation (spaces, never tabs)
+   - Allowed top-level keys: `extensions`, `receivers`, `processors`, `exporters`, `connectors`, `service`
+   - Each pipeline declares at least `receivers` (≥1) and `exporters` (≥1); `processors` is optional but recommended
+   - No unknown keys (typos like `processers`, `exportor`)
 
-## Phase 2 — Validation structurelle
+## Phase 2 — Structural validation
 
-Cross-référencer `service.pipelines` avec les composants définis :
+Cross-reference `service.pipelines` with defined components:
 
-- ✅ Tout composant cité dans une pipeline est défini dans la section correspondante
-- ✅ Tout composant défini est utilisé dans au moins une pipeline (sinon : warning, code mort qui dérive)
-- ✅ Pas de doublon de nom dans la même section
-- ✅ Le nom (`otlp`) ou nom alternatif (`otlp/jaeger`, `otlp/internal`) est cohérent entre définition et référence
-- ✅ Type de signal cohérent : un processor `tail_sampling` n'a de sens qu'en pipeline `traces` ; un receiver `filelog` n'alimente pas une pipeline `traces` ou `metrics`
-- ✅ Extensions citées dans `service.extensions` sont définies en haut (et inversement, sinon non chargées)
-- ✅ Connectors : si un composant est utilisé à la fois comme exporter d'une pipeline et receiver d'une autre, il doit être un `connector`, pas un exporter classique
+- ✅ Every component cited in a pipeline is defined in the matching section
+- ✅ Every defined component is used in at least one pipeline (otherwise: warning, drifting dead code)
+- ✅ No duplicate names within the same section
+- ✅ Names (`otlp`) and aliases (`otlp/jaeger`, `otlp/internal`) are consistent between definition and reference
+- ✅ Signal type coherence: a `tail_sampling` processor only makes sense in a `traces` pipeline; a `filelog` receiver doesn't feed `traces` or `metrics` pipelines
+- ✅ Extensions referenced under `service.extensions` are defined at the top (and vice-versa, otherwise not loaded)
+- ✅ Connectors: if a component is used both as an exporter on one pipeline and a receiver on another, it must be a `connector`, not a regular exporter
 
-## Phase 3 — Audit qualitatif
+## Phase 3 — Qualitative audit
 
-### Ordre des processors
+### Processor ordering
 
-Convention OpenTelemetry, du premier au dernier dans la pipeline :
+OpenTelemetry convention, first to last in the pipeline:
 
-1. **`memory_limiter`** — toujours premier, sinon OOM en cas de surcharge.
-2. **`k8sattributes` / `resourcedetection`** — enrichissement contexte (avant les transformations qui pourraient s'en servir).
-3. **`attributes` / `resource` / `transform`** — modifications de champs.
-4. **`filter` / `probabilistic_sampler`** — réduction de volume tôt = économie sur la suite du pipeline.
-5. **`tail_sampling`** — décision finale par trace, après que tous les spans sont arrivés.
-6. **`batch`** — toujours en dernier avant les exporters. Optimise les RPC.
+1. **`memory_limiter`** — always first, otherwise OOM under load.
+2. **`k8sattributes` / `resourcedetection`** — context enrichment (before any transform that might use it).
+3. **`attributes` / `resource` / `transform`** — field modifications.
+4. **`filter` / `probabilistic_sampler`** — early volume reduction = savings downstream.
+5. **`tail_sampling`** — final per-trace decision, after all spans have arrived.
+6. **`batch`** — always last before exporters. Optimizes RPCs.
 
-Drapeaux rouges à signaler immédiatement :
+Red flags to surface immediately:
 
-- `batch` placé avant un sampler ou un filter → le batching empêche les décisions par-trace ou casse l'efficacité du filtre.
-- `memory_limiter` absent ou pas en première position → OOM imminent sous charge.
-- `tail_sampling` après `batch` → comportement incorrect.
+- `batch` placed before a sampler or filter → batching prevents per-trace decisions or breaks filter efficiency.
+- `memory_limiter` missing or not in first position → imminent OOM under load.
+- `tail_sampling` after `batch` → incorrect behavior.
 
-### Catalogue de pièges
+### Pitfalls catalog
 
 **`memory_limiter`**
-- Absent dans une pipeline qui reçoit du trafic externe → critique.
-- `limit_mib + spike_limit_mib` doivent rester `<` mémoire allouée au container/process, sinon le limiter déclenche après l'OOM kill.
-- `check_interval: 1s` recommandé.
+- Missing on a pipeline that receives external traffic → critical.
+- `limit_mib + spike_limit_mib` must stay `<` memory allocated to the container/process, otherwise the limiter triggers after the OOM kill.
+- `check_interval: 1s` recommended.
 
 **`batch`**
-- `send_batch_size` (défaut 8192) : cible normale.
-- `send_batch_max_size` : hard cap ; si défini, doit être ≥ `send_batch_size`.
-- `timeout` : force flush, ex `200ms` pour les traces, plus long pour des logs basse fréquence.
-- Toujours en **dernière position** avant les exporters.
+- `send_batch_size` (default 8192): normal target.
+- `send_batch_max_size`: hard cap; if defined, must be ≥ `send_batch_size`.
+- `timeout`: force flush, e.g. `200ms` for traces, longer for low-frequency logs.
+- Always in **last position** before exporters.
 
 **`tail_sampling`**
-- Toutes les spans d'une trace doivent atteindre la même instance de collector.
-- En multi-instance : tier amont avec `loadbalancing` exporter routant par `traceID`.
-- `decision_wait` : durée d'attente d'une trace complète (typiquement 30s).
-- `num_traces` : capacité mémoire, surveiller.
-- Combiné avec `batch` en amont = casser le bon fonctionnement.
+- All spans of a single trace must reach the same collector instance.
+- In multi-instance setups: an upstream tier with the `loadbalancing` exporter routing by `traceID`.
+- `decision_wait`: how long to wait for a complete trace (typically 30s).
+- `num_traces`: memory capacity, watch this.
+- Combined with an upstream `batch` = breaks proper operation.
 
-**TLS / sécurité**
-- `tls.insecure: true` ou bloc `tls` absent en prod = trafic clair. Acceptable seulement si TLS termine ailleurs (sidecar, service mesh) — à expliciter dans un commentaire.
-- `tls.insecure_skip_verify: true` : presque jamais justifié hors dev/PoC.
-- mTLS recommandé entre collectors internes (gateway ↔ agent).
+**TLS / security**
+- `tls.insecure: true` or no `tls` block in production = clear-text traffic. Acceptable only if TLS terminates elsewhere (sidecar, service mesh) — should be made explicit in a comment.
+- `tls.insecure_skip_verify: true`: rarely justified outside dev/PoC.
+- mTLS recommended between internal collectors (gateway ↔ agent).
 
-**Ports OTLP**
+**OTLP ports**
 - `4317` = gRPC
-- `4318` = HTTP (JSON ou protobuf)
-- Bind à `0.0.0.0:4317` requis en container (pas `localhost` ni `127.0.0.1`, sinon non joignable depuis l'extérieur du namespace réseau).
+- `4318` = HTTP (JSON or protobuf)
+- Bind to `0.0.0.0:4317` required in containers (not `localhost` or `127.0.0.1`, otherwise unreachable from outside the network namespace).
 
 **Exporters**
-- `logging` exporter → renommé `debug` depuis v0.86 (déprécié, retiré ensuite). À mettre à jour.
-- `debug` avec `verbosity: detailed` en prod = noyade des logs et coût CPU.
-- Pour tout exporter réseau : configurer `sending_queue` + `retry_on_failure` (résilience aux pannes transitoires).
-- `sending_queue.storage:` pour persistance de la queue (extension `file_storage`).
+- `logging` exporter → renamed to `debug` since v0.86 (deprecated, then removed). Update accordingly.
+- `debug` with `verbosity: detailed` in production = log flooding and CPU cost.
+- For any network exporter: configure `sending_queue` + `retry_on_failure` (resilience to transient failures).
+- `sending_queue.storage:` for queue persistence (extension `file_storage`).
 
 **Receivers**
-- `filelog` :
-  - `start_at: beginning` rejoue tout l'historique au démarrage (drama si gros fichiers).
-  - Préférer `start_at: end` + `storage:` (extension `file_storage`) pour persister la position.
-  - `include_file_path: true` utile, mais attention cardinalité côté backend.
-- `prometheus` : utiliser `metric_relabel_configs` pour drop les labels qui explosent la cardinalité.
-- `otlp` : déclarer `protocols.grpc` ET/OU `protocols.http` selon les clients ; un client HTTP qui frappe un endpoint gRPC-only échoue silencieusement côté collector.
-- `hostmetrics` : la liste de scrapers active (`cpu`, `memory`, `disk`, `filesystem`, `network`, …) impacte fortement le volume — ne pas tout activer par défaut.
+- `filelog`:
+  - `start_at: beginning` replays the entire history at startup (drama on large files).
+  - Prefer `start_at: end` + `storage:` (extension `file_storage`) to persist position.
+  - `include_file_path: true` is useful, but watch backend cardinality.
+- `prometheus`: use `metric_relabel_configs` to drop labels that would explode cardinality.
+- `otlp`: declare `protocols.grpc` AND/OR `protocols.http` depending on clients; an HTTP client hitting a gRPC-only endpoint fails silently on the collector side.
+- `hostmetrics`: the active scrapers list (`cpu`, `memory`, `disk`, `filesystem`, `network`, …) heavily impacts volume — don't enable everything by default.
 
-**Cardinalité métriques**
-- `attributes` / `resource` / `transform` qui injectent des champs très variables (UUID, IP, `user_id`, `request_id`, `trace_id`, `span_id`) sur des **métriques** → explosion de cardinalité côté backend (Prometheus, Mimir, TSDB Elastic).
-- Acceptable sur traces/logs, jamais sur metrics. Signaler systématiquement.
+**Metrics cardinality**
+- `attributes` / `resource` / `transform` injecting highly variable fields (UUID, IP, `user_id`, `request_id`, `trace_id`, `span_id`) on **metrics** → cardinality explosion in the backend (Prometheus, Mimir, Elastic TSDB).
+- Acceptable on traces/logs, never on metrics. Always flag this.
 
-**Self-observability du collector**
-- `service.telemetry.metrics.level: detailed` et `address: 0.0.0.0:8888` pour exposer les métriques internes (`otelcol_*`).
-- `service.telemetry.logs.level: warn` en prod (`info` génère beaucoup, `debug` énormément).
-- Sans cette télémétrie interne, le collector est aveugle sur lui-même → pas de diag possible.
+**Collector self-observability**
+- `service.telemetry.metrics.level: detailed` and `address: 0.0.0.0:8888` to expose internal metrics (`otelcol_*`).
+- `service.telemetry.logs.level: warn` in production (`info` is verbose, `debug` is huge).
+- Without this internal telemetry, the collector is blind to itself → no diagnostics possible.
 
 **Kubernetes — `k8sattributes`**
-- Nécessite un `ClusterRole` avec `get,list,watch` sur `pods`, `namespaces`, et selon configuration `replicasets`, `nodes`.
-- Déploiement : `DaemonSet` pour enrichissement local par nœud, ou `Deployment` avec `passthrough: true` pour mode passe-plat.
-- Sans le RBAC : les pods démarrent mais les attributs k8s manquent silencieusement.
+- Requires a `ClusterRole` with `get,list,watch` on `pods`, `namespaces`, and depending on configuration `replicasets`, `nodes`.
+- Deployment: `DaemonSet` for local node-scoped enrichment, or `Deployment` with `passthrough: true` for pass-through mode.
+- Without the RBAC: pods start fine but k8s attributes silently miss.
 
 **Versioning**
-- Composants en `alpha` / `beta` : changements breaking entre versions mineures, à pinner.
-- Vérifier que la version du binaire match les composants utilisés (un champ retiré dans v0.110 ne sera pas accepté).
+- `alpha` / `beta` components: breaking changes between minor versions, must be pinned.
+- Make sure the binary version matches the components used (a field removed in v0.110 will be rejected).
 
-# Format de sortie
+# Output format
 
-Rendre un rapport structuré, en trois sections :
+Produce a structured report with three sections:
 
 ```markdown
-## ❌ Erreurs (bloquantes)
-- [`processors.batch`] manquant en fin de pipeline `traces`, ligne 42
-- [`service.pipelines.traces.processors`] référence `tail_sampling/v2` non défini
+## ❌ Errors (blocking)
+- [`processors.batch`] missing at the end of the `traces` pipeline, line 42
+- [`service.pipelines.traces.processors`] references undefined `tail_sampling/v2`
 
-## ⚠️ Warnings (à corriger)
-- [`exporters.otlp.tls.insecure`] = true en environnement déclaré prod, ligne 88
-- [`processors.attributes/enrich`] ajoute `user_id` sur la pipeline `metrics` → cardinalité
+## ⚠️ Warnings (should fix)
+- [`exporters.otlp.tls.insecure`] = true in declared prod environment, line 88
+- [`processors.attributes/enrich`] adds `user_id` on the `metrics` pipeline → cardinality
 
-## 💡 Suggestions (optimisations)
-- [`receivers.filelog.start_at`] passer à `end` + extension `file_storage` pour persistance
-- [`service.telemetry.metrics`] non exposé, le collector est aveugle sur lui-même
+## 💡 Suggestions (optimizations)
+- [`receivers.filelog.start_at`] switch to `end` + `file_storage` extension for persistence
+- [`service.telemetry.metrics`] not exposed, the collector is blind to itself
 ```
 
-Toujours citer le chemin YAML (`processors.batch.timeout`) ou le numéro de ligne pour que l'utilisateur sache où corriger.
+Always cite the YAML path (`processors.batch.timeout`) or line number so the user knows where to fix.
 
-Si tout est OK : un bloc unique `✅ Configuration valide` avec la liste des composants détectés, leur rôle, et la distribution requise.
+If everything is fine: a single `✅ Configuration valid` block with the list of detected components, their roles, and the required distribution.
 
-# Pièges du skill lui-même
+# Skill self-pitfalls
 
-- Ne pas inventer de composants. Si un composant n'est pas connu, le signaler comme tel et suggérer `otelcol validate` plutôt que d'affirmer.
-- Ne pas réécrire la config en entier sans demander. Le rapport est le livrable principal ; les patchs ne sont produits que sur demande explicite.
-- Les versions du collector évoluent vite (changements breaking en mineure). Si un doute existe sur un champ, dire que la doc de la version cible doit être consultée.
+- Don't invent components. If a component isn't known, flag it as such and suggest `otelcol validate` rather than asserting.
+- Don't rewrite the entire config without being asked. The report is the primary deliverable; patches are produced only on explicit request.
+- Collector versions evolve quickly (breaking changes in minor releases). If unsure about a field, say the docs for the target version should be consulted.

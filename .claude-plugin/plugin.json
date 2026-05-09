@@ -1,7 +1,7 @@
 {
   "name": "opentelemetry-skills",
   "version": "0.1.0",
-  "description": "Skills Claude Code pour l'instrumentation et l'exploitation OpenTelemetry",
+  "description": "Claude Code skills for OpenTelemetry instrumentation and operations",
   "author": {
     "name": "Valentin Momboeuf",
     "email": "valentin.momboeuf@lumentyr.com"

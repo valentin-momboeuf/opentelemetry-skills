@@ -1,57 +1,57 @@
 # CLAUDE.md — opentelemetry-skills
 
-Repo de skills Claude Code autour d'OpenTelemetry. Chaque skill vit dans `skills/<nom>/SKILL.md`.
+Claude Code skills repo for OpenTelemetry. Each skill lives at `skills/<name>/SKILL.md`.
 
-## Règles d'écriture des skills
+## Skill writing rules
 
-- **Frontmatter obligatoire** : `name` et `description` (en français, avec déclencheurs explicites)
-- **Le `description` doit dire QUAND déclencher** le skill, pas seulement ce qu'il fait
-- **Style** : impératif, concis, pas de remplissage. Le skill est lu par un LLM, pas un humain
-- **Exemples concrets** > théorie. Inclure les imports, versions, et commandes exactes
-- **Pièges signalés** : idempotence, permissions, secrets, cardinalité métriques, sampling
+- **Frontmatter required**: `name` and `description`, with explicit triggers
+- **The `description` must say WHEN to trigger** the skill, not just what it does
+- **Style**: imperative, concise, no filler. The skill is read by an LLM, not a human
+- **Concrete examples** > theory. Include imports, versions, exact commands
+- **Pitfalls flagged**: idempotence, permissions, secrets, metrics cardinality, sampling
 
-### Squelette d'un SKILL.md
+### SKILL.md skeleton
 
 ```markdown
 ---
 name: edot-collector-config
-description: Use when configuring the Elastic/OTel Collector (receivers, processors, exporters) for traces/metrics/logs pipelines. Triggers on "configure le collector", "ajoute un exporter", "pipeline OTLP".
+description: Use when configuring the Elastic/OTel Collector (receivers, processors, exporters) for traces/metrics/logs pipelines. Triggers on "configure the collector", "add an exporter", "OTLP pipeline".
 ---
 
-# Quand l'utiliser
+# When to use it
 
 ...
 
-# Étapes
+# Steps
 
 1. ...
 
-# Pièges
+# Pitfalls
 
 - ...
 ```
 
-## Conventions repo
+## Repo conventions
 
-- Documentation : **français** — Code, exemples, commits : **anglais**
-- Commits conventionnels : `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
-- Un dossier = un skill. Pas de skill multi-fichier sauf si nécessaire (assets, scripts)
-- Si un skill embarque des scripts : `skills/<nom>/scripts/`, shebang `#!/usr/bin/env bash`, `set -euo pipefail`, passe `shellcheck`
+- All documentation, code, examples, and commits in **English**
+- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
+- One folder = one skill. No multi-file skills unless necessary (assets, scripts)
+- Embedded scripts go under `skills/<name>/scripts/`, shebang `#!/usr/bin/env bash`, `set -euo pipefail`, must pass `shellcheck`
 
-## Tester un skill localement
+## Testing a skill locally
 
 ```bash
-# installer le repo comme plugin local
+# install the repo as a local plugin
 /plugin install /Users/valentin/projets/opentelemetry-skills
 
-# recharger après modif
+# reload after edits
 /plugin reload opentelemetry-skills
 ```
 
-## Périmètre
+## Scope
 
-- ✅ Instrumentation (SDK auto/manuel, EDOT, OTLP)
+- ✅ Instrumentation (auto/manual SDKs, EDOT, OTLP)
 - ✅ Collector (configuration, processors, exporters)
 - ✅ Backends (Elastic, Jaeger, Prometheus, Grafana)
-- ✅ Patterns d'exploitation (sampling, cardinalité, coût)
-- ❌ Skills génériques non-OTel (à mettre ailleurs)
+- ✅ Operational patterns (sampling, cardinality, cost)
+- ❌ Generic non-OTel skills (belong elsewhere)
