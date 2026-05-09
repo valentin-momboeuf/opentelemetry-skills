@@ -1,0 +1,26 @@
+{
+  "skill_name": "ottl-helper",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "write-redaction",
+      "prompt": "In our logs pipeline we have email addresses showing up in the log body, and bearer tokens leaking into the `Authorization` request header (we have it as an attribute `http.request.header.authorization`). I need to redact both before the logs hit Splunk. Write me the OTTL transform processor config for this. Production environment.",
+      "expected_output": "A `transform` processor (NOT filter, NOT routing) configured with `log_statements`, `context: log`, two `replace_pattern` calls — one on `body` for emails, one on `attributes[\"http.request.header.authorization\"]` for the Bearer token (with a `where ... != nil` guard). `error_mode: ignore` set explicitly. Output structured per the Write-mode template (Intent / Context choice / Statement(s) / Notes).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "eval_name": "explain-validate-filter",
+      "prompt": "Can you walk me through what this filter processor does and tell me if anything looks off?\n\n```yaml\nfilter:\n  error_mode: ignore\n  traces:\n    span:\n      - 'attributes[\"env\"] == \"prod\"'\n      - 'IsMatch(name, \"/healthz\")'\n```",
+      "expected_output": "Explanation that `filter` DROPS spans matching ANY condition (logical OR). Statement 1 drops every prod span (likely the inverse of what was intended — should be flagged). Statement 2 uses unanchored regex, so it drops not just `/healthz` spans but anything containing that substring (e.g. `/api/v1/healthz/details`) — should be flagged. Should also confirm `error_mode: ignore` is set correctly. Should use the Explain or Validate mode template (or a mix), with explicit issue/concern callouts.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "eval_name": "routing-connector",
+      "prompt": "We have a single OTLP receiver feeding traces, and I want to split them by service: send `checkout` and `payments` traces to the production Datadog backend, and everything else (batch jobs, dev services, etc.) to a local Tempo via OTLP. Use the routing connector and write the OTTL conditions plus the surrounding `service.pipelines` wiring.",
+      "expected_output": "A `connectors.routing` block with `default_pipelines` set, `error_mode: ignore`, and a `table` with one or two entries that use `route() where ...` (this is non-negotiable — without `route()` the statement is silently a no-op). Conditions should reference `resource.attributes[\"service.name\"]`. Pipeline wiring must show the connector as an exporter on the input pipeline AND as a receiver on each output pipeline. Output structured per the Write-mode template.",
+      "files": []
+    }
+  ]
+}

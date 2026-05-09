@@ -56,6 +56,20 @@ Output structure: 🗺️ Topology / 📦 Distribution required / ⚙️ Configu
 
 Triggers on prompts like *"design a pipeline for X to Y"*, *"build me an otelcol config"*, *"k8s logs + traces to Tempo+Loki"*, *"two-tier tail sampling to Datadog"*.
 
+### `ottl-helper`
+
+Write, explain, or validate OTTL (OpenTelemetry Transformation Language) statements for the contrib `transform`, `filter`, and `routing` (connector) processors.
+
+Three modes:
+
+1. **Write** — given an intent (*"redact emails in log bodies"*, *"drop healthcheck spans"*, *"route checkout traces to Datadog"*), produce the OTTL statement(s), the surrounding YAML block, and notes on `error_mode`, regex anchoring, and type coercion.
+2. **Explain** — given an existing OTTL block, walk through it: which processor (mutate / drop / select), which context (resource/scope/span/spanevent/metric/datapoint/log), what each statement does, what gets dropped vs. mutated vs. routed.
+3. **Validate** — find filter inversions ("DROP" not "keep" — the easy-to-flip semantic), missing `route()` in routing connector entries, unanchored regex over-matches, type mismatches in comparisons (`Int(...)` vs string `"200"`), trace-level operations attempted in per-span `filter`, and missing `error_mode: ignore` in production.
+
+Includes a function reference (mutators, type/parsing, string, boolean predicates, time) and a recipe book covering the common patterns: PII redaction, healthcheck dropping, env tagging, high-cardinality key removal, and routing by `service.name`.
+
+Triggers on prompts like *"write an OTTL statement"*, *"explain this transform processor"*, *"validate my filter"*, *"redact this attribute"*, *"drop these spans"*, *"route metrics by ..."*, *"transformprocessor"*, *"filterprocessor"*, *"routing connector"*.
+
 ### `otel-collector-debug`
 
 Diagnose a *running* OpenTelemetry Collector when symptoms hit: no data reaching the backend, OOM/restart loops, dropped spans/metrics/logs, exporter retries, queue full, high CPU, or wrong data shape at the backend.
