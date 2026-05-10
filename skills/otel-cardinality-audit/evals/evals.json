@@ -1,0 +1,26 @@
+{
+  "skill_name": "otel-cardinality-audit",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "mimir-429-after-deploy",
+      "prompt": "Mimir is rejecting our `http_server_request_duration_seconds` metric since this morning's deploy with `max-series-per-user-per-metric exceeded` (limit 100k). The deploy added a new auto-instrumentation library (Java agent v2.10) on the `payments` service. We have ~30 services, ~2k pods total, 150 RPS to payments, and our dashboards group by `service.name`, `http.method`, `http.status_code`, `http.route`. We never use `request_id`, `trace_id`, or `http.url` on graphs. Audit what's happening and produce the OTel collector processor block to fix it. Backend is Mimir. Pipeline already has `memory_limiter`, `k8sattributes`, `batch`.",
+      "expected_output": "Audit report identifying the suspects (request_id, trace_id, http.url, possibly k8s.pod.name) with verdicts. Remediation YAML using transform/attributes processors (delete_matching_keys for ids, replace_pattern or delete for http.url, keep http.route). Should mention pipeline placement (after k8sattributes, before batch). Should note existing Mimir series won't disappear until retention expires. Should mention the SDK Views API as the canonical upstream fix.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "eval_name": "preventive-audit-new-service",
+      "prompt": "We're about to ship a new Go service `inventory-svc` to production. It uses OTel auto-instrumentation and emits the standard HTTP/gRPC metrics plus a few custom ones via the Meter API. I want to do a preventive audit before it goes live to confirm no metric attribute will explode our Mimir cardinality. What attributes should I be checking, what's the methodology, and if I want a defense-in-depth processor rule in the collector that drops the most common offenders, what would it look like? We use `k8sattributes` for resource enrichment. About 50 services in the cluster.",
+      "expected_output": "Methodology for measuring cardinality (debug exporter inspection, prom-style topk count by __name__, ranking by distinct values, multiplicative model). List of attributes to audit (request_id, trace_id, span_id, session_id, user_id, http.url, http.target, customer_id, pod.name, full URL paths). Defensive `transform` processor block with delete_matching_keys for ids, optional URL normalization, optional truncate_all. Mention SDK Views API as the strongest fix. Mention pipeline placement (after k8sattributes, before batch).",
+      "files": []
+    },
+    {
+      "id": 3,
+      "eval_name": "rank-and-fix-given-data",
+      "prompt": "I ran a topk count on our Prom-compatible backend and got: `http_server_requests_total` has 240k unique series. Distinct values per label on that metric: `service.name`=18, `http.method`=4, `http.status_code`=8, `http.route`=~50 templated routes, `http.url`=~80k unique full URLs (looks like UUIDs in path), `k8s.pod.name`=~600 (Deployment churn), `request_id`=null (not set), `customer_id`=~1200 distinct tenants. We have to get below Mimir's 100k limit per metric. Rank these labels and tell me what to drop, what to normalize, what to aggregate, and produce the YAML.",
+      "expected_output": "Ranking table: http.url 🔴 (drop, drives the explosion alone), k8s.pod.name 🟠 (aggregate or drop for this cumulative counter — pod churn), customer_id 🟡 (large but stable, depends on need), http.route 🟢 (normalized, keep), service.name/method/status_code 🟢 keep. Multiplicative math reasoning (e.g. 18 × 4 × 8 × 50 = 28800 baseline, http.url alone explodes it). YAML using delete_key for http.url, metricstransform aggregate_labels (or transform delete_key) for k8s.pod.name. Mention that customer_id × the rest = 18×4×8×50×1200 = unreasonable, but if business needs it, accept the cost or move customer_id to a separate metric. Mention existing series stay until Mimir retention.",
+      "files": []
+    }
+  ]
+}

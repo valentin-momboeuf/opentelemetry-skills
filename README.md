@@ -86,6 +86,24 @@ Includes a function reference (mutators, type/parsing, string, boolean predicate
 
 Triggers on prompts like *"write an OTTL statement"*, *"explain this transform processor"*, *"validate my filter"*, *"redact this attribute"*, *"drop these spans"*, *"route metrics by ..."*, *"transformprocessor"*, *"filterprocessor"*, *"routing connector"*.
 
+### `otel-cardinality-audit`
+
+Investigate, size, or fix metric cardinality explosion in an OpenTelemetry pipeline — backend rejecting series (Mimir 429 / `max-series-per-user-per-metric exceeded`, Prometheus OOM, Elastic TSDB field limit), runaway billing on a metrics SaaS, or a sudden series spike after a deploy.
+
+Five-step audit workflow:
+
+1. **Confirm the symptom** — exact backend message, sudden vs gradual, per-metric vs pipeline-wide.
+2. **Measure cardinality at the source** — collector self-telemetry (`otelcol_processor_*`, `otelcol_exporter_sent_metric_points`), Prometheus-style `topk(20, count by (__name__)({__name__=~".+"}))`, Mimir `/api/v1/cardinality/*` endpoints, the `debug` exporter for eyeballing per-datapoint attributes.
+3. **Rank the offenders** — verdict per attribute: 🔴 drop unbounded ids (request_id, trace_id, user_id), 🟠 normalize URL paths with IDs, 🟡 cap or aggregate large-but-bounded labels, 🟢 keep dashboard-relevant ones. Multiplicative cost model: `cardinality(metric) ≈ ∏ distinct_values(label_i)`.
+4. **Pick the right tool** — `attributes` processor for known-key drops, `transform` (OTTL) for regex deletes / `replace_pattern` / `truncate_all`, `metricstransform` for `aggregate_labels`, `filter` for whole-datapoint drops, `metric_relabel_configs` at the prometheus receiver, SDK Views as the upstream canonical fix.
+5. **Produce a remediation YAML** — deployable processor block with comments, pipeline placement (after `k8sattributes` / `resourcedetection`, before `batch`), verification queries.
+
+Recipe book covers: drop unbounded id-like keys (`delete_matching_keys`), normalize URL paths (`replace_pattern` for UUIDs and numeric segments), cap pathologically long string values (`truncate_all`), aggregate `pod.name` away on cumulative metrics (`metricstransform.aggregate_labels`), filter noisy debug metric families, prometheus-receiver `labeldrop` at scrape time.
+
+Output: 🩺 Symptom / 🔍 Suspects (ranked table with verdicts) / ⚙️ Configuration / ✅ Verification / 💬 Rationale / 📋 TODO before deploying. Calls out the always-true caveat that **existing high-card series don't disappear** until retention expires (or a forget/tombstone), and that **the canonical fix is upstream at the SDK Views**, not the collector.
+
+Triggers on prompts like *"Mimir is rejecting our metric"*, *"max-series-per-user exceeded"*, *"too many series"*, *"high-cardinality attribute"*, *"drop labels"*, *"request_id leaked into a metric"*, *"URL path as label"*, *"pod name on long-lived metric"*, *"audit cardinality before going live"*.
+
 ### `otel-collector-debug`
 
 Diagnose a *running* OpenTelemetry Collector when symptoms hit: no data reaching the backend, OOM/restart loops, dropped spans/metrics/logs, exporter retries, queue full, high CPU, or wrong data shape at the backend.
